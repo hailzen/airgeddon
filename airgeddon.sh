@@ -2,13 +2,12 @@
 #Title........: airgeddon.sh
 #Description..: This is a multi-use bash script for Linux systems to audit wireless networks.
 #Author.......: v1s1t0r
-#Version......: 10.42
+#Version......: 11.02
 #Usage........: bash airgeddon.sh
 #Bash Version.: 4.2 or later
 
 #Global shellcheck disabled warnings
-#shellcheck disable=SC2154
-#shellcheck disable=SC2034
+#shellcheck disable=SC2154,SC2034
 
 #Language vars
 #Change this line to select another default language. Select one from available values in array
@@ -131,8 +130,8 @@ declare -A possible_alias_names=(
 								)
 
 #General vars
-airgeddon_version="10.42"
-language_strings_expected_version="10.42-1"
+airgeddon_version="11.02"
+language_strings_expected_version="11.02-1"
 standardhandshake_filename="handshake-01.cap"
 standardpmkid_filename="pmkid_hash.txt"
 standardpmkidcap_filename="pmkid.cap"
@@ -172,6 +171,10 @@ hashcat3_version="3.0"
 hashcat4_version="4.0.0"
 hashcat_hccapx_version="3.40"
 minimum_hashcat_pmkid_version="6.0.0"
+hashcat_2500_deprecated_version="6.2.4"
+hashcat_handshake_cracking_plugin="2500"
+hashcat_pmkid_cracking_plugin="22000"
+hashcat_enterprise_cracking_plugin="5500"
 hashcat_tmp_simple_name_file="hctmp"
 hashcat_tmp_file="${hashcat_tmp_simple_name_file}.hccap"
 hashcat_pot_tmp="${hashcat_tmp_simple_name_file}.pot"
@@ -343,6 +346,10 @@ known_compatible_distros=(
 							"Manjaro"
 						)
 
+known_incompatible_distros=(
+							"Microsoft"
+						)
+
 known_arm_compatible_distros=(
 								"Raspbian"
 								"Parrot arm"
@@ -350,22 +357,22 @@ known_arm_compatible_distros=(
 							)
 
 #Hint vars
-declare main_hints=(128 134 163 437 438 442 445 516 590 626 660 697)
-declare dos_hints=(129 131 133 697)
-declare handshake_pmkid_hints=(127 130 132 664 665 697)
-declare dos_handshake_hints=(142 697)
-declare decrypt_hints=(171 179 208 244 163 697)
-declare personal_decrypt_hints=(171 178 179 208 244 163 697)
-declare enterprise_decrypt_hints=(171 179 208 244 163 610 697)
-declare select_interface_hints=(246 697)
+declare main_hints=(128 134 163 437 438 442 445 516 590 626 660 697 699)
+declare dos_hints=(129 131 133 697 699)
+declare handshake_pmkid_hints=(127 130 132 664 665 697 699)
+declare dos_handshake_hints=(142 697 699)
+declare decrypt_hints=(171 179 208 244 163 697 699)
+declare personal_decrypt_hints=(171 178 179 208 244 163 697 699)
+declare enterprise_decrypt_hints=(171 179 208 244 163 610 697 699)
+declare select_interface_hints=(246 697 699)
 declare language_hints=(250 438)
-declare option_hints=(445 250 448 477 591 626 697)
-declare evil_twin_hints=(254 258 264 269 309 328 400 509 697)
-declare evil_twin_dos_hints=(267 268 509 697)
+declare option_hints=(445 250 448 477 591 626 697 699)
+declare evil_twin_hints=(254 258 264 269 309 328 400 509 697 699)
+declare evil_twin_dos_hints=(267 268 509 697 699)
 declare beef_hints=(408)
-declare wps_hints=(342 343 344 356 369 390 490 625 697)
-declare wep_hints=(431 429 428 432 433 697)
-declare enterprise_hints=(112 332 483 518 629 301 697)
+declare wps_hints=(342 343 344 356 369 390 490 625 697 699)
+declare wep_hints=(431 429 428 432 433 697 699)
+declare enterprise_hints=(112 332 483 518 629 301 697 699)
 
 #Charset vars
 crunch_lowercasecharset="abcdefghijklmnopqrstuvwxyz"
@@ -544,7 +551,7 @@ function language_strings_handling_messages() {
 	language_strings_failed_downloading["POLISH"]="Nie można pobrać pliku tłumaczenia. Sprawdź połączenie internetowe lub pobierz go ręcznie z ${normal_color}${urlgithub}"
 	language_strings_failed_downloading["GERMAN"]="Die Übersetzungsdatei konnte nicht heruntergeladen werden. Überprüfen Sie Ihre Internetverbindung oder laden Sie sie manuell von ${normal_color}${urlgithub} runter"
 	language_strings_failed_downloading["TURKISH"]="Çeviri dosyası indirilemedi. İnternet bağlantınızı kontrol edin veya manuel olarak indirin ${normal_color}${urlgithub}"
-	language_strings_failed_downloading["ARABIC"]="لا يمكن تنزيل ملف اللغة. تحقق من اتصالك بالإنترنت أو قم بتنزيله يدويًا من ${normal_color}${urlgithub}"
+	language_strings_failed_downloading["ARABIC"]="${normal_color}${urlgithub}${red_color} لا يمكن تنزيل ملف اللغة. تحقق من اتصالك بالإنترنت أو قم بتنزيله يدويًا من"
 
 	declare -gA language_strings_first_time
 	language_strings_first_time["ENGLISH"]="If you are seeing this message after an automatic update, don't be scared! It's probably because airgeddon has different file structure since version 6.1. It will be automatically fixed"
@@ -1292,6 +1299,7 @@ function check_busy_ports() {
 		for tcp_port in "${tcp_ports[@]}"; do
 			if ! check_tcp_udp_port "${tcp_port}" "${port_type}"; then
 				busy_port="${tcp_port}"
+				find_process_name_by_port "${tcp_port}" "${port_type}"
 				echo
 				language_strings "${language}" 698 "red"
 				language_strings "${language}" 115 "read"
@@ -1305,6 +1313,7 @@ function check_busy_ports() {
 		for udp_port in "${udp_ports[@]}"; do
 			if ! check_tcp_udp_port "${udp_port}" "${port_type}"; then
 				busy_port="${udp_port}"
+				find_process_name_by_port "${udp_port}" "${port_type}"
 				echo
 				language_strings "${language}" 698 "red"
 				language_strings "${language}" 115 "read"
@@ -1327,14 +1336,41 @@ function check_tcp_udp_port() {
 	port=$(printf "%04x" "${1}")
 	port_type="${2}"
 
-	declare -a busy_ports=($(grep -v "rem_address" --no-filename "/proc/net/${port_type}" | awk '{print $2}' | cut -d: -f2 | sort -u))
+	declare -a busy_ports=($(grep -v "local_address" --no-filename "/proc/net/${port_type}" "/proc/net/${port_type}6" | awk '{print $2$4}' | cut -d ":" -f 2 | sort -u))
 	for hexport in "${busy_ports[@]}"; do
-		if [ "${hexport}" = "${port}" ]; then
-			return 1
+		if [[ "${port_type}" == "tcp" || "${port_type}" == "tcp6" ]]; then
+			if [ "${hexport}" = "${port}0A" ]; then
+				return 1
+			fi
+		else
+			if [ "${hexport}" = "${port}07" ]; then
+				return 1
+			fi
 		fi
 	done
 
 	return 0
+}
+
+#Find process name from a given port
+function find_process_name_by_port() {
+
+	debug_print
+
+	local port
+	port="${1}"
+	local port_type
+	port_type="${2}"
+
+	local regexp_part1
+	local regexp_part2
+	regexp_part1="${port_type}\h.*?[0-9A-Za-z%\*]:${port}"
+	regexp_part2='\h.*?\busers:\(\("\K[^"]+(?=")'
+
+	local regexp
+	regexp="${regexp_part1}${regexp_part2}"
+
+	blocking_process_name=$(ss -tupln | grep -oP "${regexp}")
 }
 
 #Validate if a wireless card is supporting VIF (Virtual Interface)
@@ -2339,7 +2375,7 @@ function set_chipset() {
 
 		elif [[ "${bus_type}" =~ pci|ssb|bcma|pcmcia ]]; then
 			if [[ -f /sys/class/net/${1}/device/vendor ]] && [[ -f /sys/class/net/${1}/device/device ]]; then
-				vendor_and_device=$(cat "/sys/class/net/${1}/device/vendor"):$(cat "/sys/class/net/${1}/device/device")
+		vendor_and_device=$(sed -e 's/0x//' "/sys/class/net/${1}/device/vendor"):$(sed -e 's/0x//' "/sys/class/net/${1}/device/device")
 				if [[ -n "${2}" ]] && [[ "${2}" = "read_only" ]]; then
 					requested_chipset=$(lspci -d "${vendor_and_device}" | head -n 1 | cut -f 3 -d ":" | sed -e "${sedruleall}")
 				else
@@ -2581,7 +2617,7 @@ function select_secondary_et_interface() {
 		option_counter2=0
 		for item2 in "${secondary_ifaces[@]}"; do
 			option_counter2=$((option_counter2 + 1))
-			if [[ "${secondary_iface}" = "${option_counter2}" ]]; then
+			if [ "${secondary_iface}" = "${option_counter2}" ]; then
 				if [ "${1}" = "dos_pursuit_mode" ]; then
 					secondary_wifi_interface=${item2}
 					secondary_phy_interface=$(physical_interface_finder "${secondary_wifi_interface}")
@@ -2652,7 +2688,7 @@ function select_interface() {
 		option_counter2=0
 		for item2 in ${ifaces}; do
 			option_counter2=$((option_counter2 + 1))
-			if [[ "${iface}" = "${option_counter2}" ]]; then
+			if [ "${iface}" = "${option_counter2}" ]; then
 				interface=${item2}
 				phy_interface=$(physical_interface_finder "${interface}")
 				check_interface_supported_bands "${phy_interface}" "main_wifi_interface"
@@ -3369,8 +3405,8 @@ function validate_network_encryption_type() {
 	debug_print
 
 	case ${1} in
-		"WPA"|"WPA2")
-			if [[ "${enc}" != "WPA" ]] && [[ "${enc}" != "WPA2" ]]; then
+		"WPA"|"WPA2"|"WPA3")
+			if [[ "${enc}" != "WPA" ]] && [[ "${enc}" != "WPA2" ]] && [[ "${enc}" != "WPA3" ]]; then
 				echo
 				language_strings "${language}" 137 "red"
 				language_strings "${language}" 115 "read"
@@ -3778,9 +3814,7 @@ function set_wep_script() {
 			fi
 		}
 
-		#shellcheck disable=SC1037
-		#shellcheck disable=SC2164
-		#shellcheck disable=SC2140
+		#shellcheck disable=SC1037,SC2164,SC2140
 		${airmon} start "${interface}" "${channel}" > /dev/null 2>&1
 		mkdir "${tmpdir}${wepdir}" > /dev/null 2>&1
 		cd "${tmpdir}${wepdir}" > /dev/null 2>&1
@@ -7318,8 +7352,19 @@ function check_bssid_in_captured_file() {
 		done
 	fi
 
+	if [[ "${handshake_captured}" = "1" ]] || [[ "${pmkid_captured}" = "1" ]]; then
+		if [[ "${2}" = "showing_msgs_capturing" ]] || [[ "${2}" = "showing_msgs_checking" ]]; then
+			if ! is_wpa2_handshake "${1}" "${bssid}"; then
+				echo
+				language_strings "${language}" 700 "red"
+				language_strings "${language}" 115 "read"
+				return 2
+			fi
+		fi
+	fi
+
 	if [[ "${handshake_captured}" = "1" ]] && [[ "${pmkid_captured}" = "0" ]]; then
-		if [[ "${2}" = "showing_msgs_checking" ]]; then
+		if [ "${2}" = "showing_msgs_checking" ]; then
 			language_strings "${language}" 322 "yellow"
 		fi
 		return 0
@@ -7563,7 +7608,7 @@ function aircrack_bruteforce_attack_option() {
 		return
 	fi
 
-	set_minlength_and_maxlength "personal"
+	set_minlength_and_maxlength "personal_handshake"
 
 	charset_option=0
 	while [[ ! ${charset_option} =~ ^[[:digit:]]+$ ]] || (( charset_option < 1 || charset_option > 11 )); do
@@ -7750,7 +7795,7 @@ function manage_hashcat_pot() {
 			pass_decrypted_by_hashcat=1
 		else
 			if compare_floats_greater_or_equal "${hashcat_version}" "${hashcat_hccapx_version}"; then
-				if [[ -f "${tmpdir}${hashcat_pot_tmp}" ]]; then
+				if [ -f "${tmpdir}${hashcat_pot_tmp}" ]; then
 					pass_decrypted_by_hashcat=1
 				fi
 			fi
@@ -8457,7 +8502,7 @@ function set_minlength() {
 	debug_print
 
 	local regexp
-	if [ "${1}" = "personal" ]; then
+	if [[ "${1}" = "personal_handshake" ]] || [[ "${1}" = "personal_pmkid" ]]; then
 		regexp="^[8-9]$|^[1-5][0-9]$|^6[0-3]$"
 		minlength_text=8
 	else
@@ -8479,7 +8524,7 @@ function set_maxlength() {
 	debug_print
 
 	local regexp
-	if [ "${1}" = "personal" ]; then
+	if [[ "${1}" = "personal_handshake" ]] || [[ "${1}" = "personal_pmkid" ]]; then
 		regexp="^[8-9]$|^[1-5][0-9]$|^6[0-3]$"
 	else
 		regexp="^[1-9]$|^[1-5][0-9]$|^6[0-3]$"
@@ -8723,15 +8768,15 @@ function exec_hashcat_dictionary_attack() {
 	debug_print
 
 	if [ "${1}" = "personal_handshake" ]; then
-		hashcat_cmd="hashcat -m 2500 -a 0 \"${tmpdir}${hashcat_tmp_file}\" \"${DICTIONARY}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_handshake_cracking_plugin} -a 0 \"${tmpdir}${hashcat_tmp_file}\" \"${DICTIONARY}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	elif [ "${1}" = "personal_pmkid" ]; then
 		tmpfiles_toclean=1
 		rm -rf "${tmpdir}hctmp"* > /dev/null 2>&1
-		hashcat_cmd="hashcat -m 22000 -a 0 \"${hashcatpmkidenteredpath}\" \"${DICTIONARY}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_pmkid_cracking_plugin} -a 0 \"${hashcatpmkidenteredpath}\" \"${DICTIONARY}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	else
 		tmpfiles_toclean=1
 		rm -rf "${tmpdir}hctmp"* > /dev/null 2>&1
-		hashcat_cmd="hashcat -m 5500 -a 0 \"${hashcatenterpriseenteredpath}\" \"${DICTIONARY}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_enterprise_cracking_plugin} -a 0 \"${hashcatenterpriseenteredpath}\" \"${DICTIONARY}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	fi
 	eval "${hashcat_cmd}"
 	language_strings "${language}" 115 "read"
@@ -8743,15 +8788,15 @@ function exec_hashcat_bruteforce_attack() {
 	debug_print
 
 	if [ "${1}" = "personal_handshake" ]; then
-		hashcat_cmd="hashcat -m 2500 -a 3 \"${tmpdir}${hashcat_tmp_file}\" ${charset} --increment --increment-min=${minlength} --increment-max=${maxlength} --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_handshake_cracking_plugin} -a 3 \"${tmpdir}${hashcat_tmp_file}\" ${charset} --increment --increment-min=${minlength} --increment-max=${maxlength} --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	elif [ "${1}" = "personal_pmkid" ]; then
 		tmpfiles_toclean=1
 		rm -rf "${tmpdir}hctmp"* > /dev/null 2>&1
-		hashcat_cmd="hashcat -m 22000 -a 3 \"${hashcatpmkidenteredpath}\" ${charset} --increment --increment-min=${minlength} --increment-max=${maxlength} --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_pmkid_cracking_plugin} -a 3 \"${hashcatpmkidenteredpath}\" ${charset} --increment --increment-min=${minlength} --increment-max=${maxlength} --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	else
 		tmpfiles_toclean=1
 		rm -rf "${tmpdir}hctmp"* > /dev/null 2>&1
-		hashcat_cmd="hashcat -m 5500 -a 3 \"${hashcatenterpriseenteredpath}\" ${charset} --increment --increment-min=${minlength} --increment-max=${maxlength} --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_enterprise_cracking_plugin} -a 3 \"${hashcatenterpriseenteredpath}\" ${charset} --increment --increment-min=${minlength} --increment-max=${maxlength} --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	fi
 	eval "${hashcat_cmd}"
 	language_strings "${language}" 115 "read"
@@ -8763,15 +8808,15 @@ function exec_hashcat_rulebased_attack() {
 	debug_print
 
 	if [ "${1}" = "personal_handshake" ]; then
-		hashcat_cmd="hashcat -m 2500 -a 0 \"${tmpdir}${hashcat_tmp_file}\" \"${DICTIONARY}\" -r \"${RULES}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_handshake_cracking_plugin} -a 0 \"${tmpdir}${hashcat_tmp_file}\" \"${DICTIONARY}\" -r \"${RULES}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	elif [ "${1}" = "personal_pmkid" ]; then
 		tmpfiles_toclean=1
 		rm -rf "${tmpdir}hctmp"* > /dev/null 2>&1
-		hashcat_cmd="hashcat -m 22000 -a 0 \"${hashcatpmkidenteredpath}\" \"${DICTIONARY}\" -r \"${RULES}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_pmkid_cracking_plugin} -a 0 \"${hashcatpmkidenteredpath}\" \"${DICTIONARY}\" -r \"${RULES}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	else
 		tmpfiles_toclean=1
 		rm -rf "${tmpdir}hctmp"* > /dev/null 2>&1
-		hashcat_cmd="hashcat -m 5500 -a 0 \"${hashcatenterpriseenteredpath}\" \"${DICTIONARY}\" -r \"${RULES}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
+		hashcat_cmd="hashcat -m ${hashcat_enterprise_cracking_plugin} -a 0 \"${hashcatenterpriseenteredpath}\" \"${DICTIONARY}\" -r \"${RULES}\" --potfile-disable -o \"${tmpdir}${hashcat_pot_tmp}\"${hashcat_cmd_fix} | tee \"${tmpdir}${hashcat_output_file}\" ${colorize}"
 	fi
 	eval "${hashcat_cmd}"
 	language_strings "${language}" 115 "read"
@@ -9173,7 +9218,7 @@ function set_hostapd_config() {
 	echo -e "bssid=${et_bssid}"
 	} >> "${tmpdir}${hostapd_file}"
 
-	if [[ "${channel}" -gt 14 ]]; then
+	if [ "${channel}" -gt 14 ]; then
 		et_channel=$(shuf -i 1-11 -n 1)
 	else
 		et_channel="${channel}"
@@ -9202,7 +9247,7 @@ function set_hostapd_wpe_config() {
 	echo -e "bssid=${et_bssid}"
 	} >> "${tmpdir}${hostapd_wpe_file}"
 
-	if [[ "${channel}" -gt 14 ]]; then
+	if [ "${channel}" -gt 14 ]; then
 		et_channel=$(shuf -i 1-11 -n 1)
 	else
 		et_channel="${channel}"
@@ -9422,6 +9467,7 @@ function set_std_internet_routing_rules() {
 	fi
 
 	ip addr add ${et_ip_router}/${std_c_mask} dev "${interface}" > /dev/null 2>&1
+	ip route add ${et_ip_range}/${std_c_mask_cidr} dev "${interface}" table local proto static scope link > /dev/null 2>&1
 	routing_modified=1
 
 	clean_initialize_iptables_nftables
@@ -9688,7 +9734,18 @@ function set_wps_attack_script() {
 		pin_header3="${white_color})${normal_color}"
 		script_attack_cmd2="${attack_cmd2}"
 
+	EOF
+
+	cat >&7 <<-'EOF'
 		function manage_wps_pot() {
+			if [ -n "${2}" ]; then
+				trophy_pin="${2}"
+			else
+				trophy_pin="Null"
+			fi
+	EOF
+
+	cat >&7 <<-EOF
 			echo "" > "${wpspotenteredpath}"
 			{
 	EOF
@@ -9709,6 +9766,7 @@ function set_wps_attack_script() {
 	EOF
 
 	cat >&7 <<-'EOF'
+			echo -e "PIN: ${trophy_pin}"
 			echo -e "${1}"
 			echo ""
 	EOF
@@ -9740,7 +9798,6 @@ function set_wps_attack_script() {
 						password_cracked_regexp="^\[\+\][[:space:]]WPA[[:space:]]PSK:[[:space:]]'(.*)'"
 					;;
 					"pixiedust")
-						success_attack_badpixie_regexp="^\[Pixie\-Dust\].*\[\-\][[:space:]]WPS[[:space:]]pin[[:space:]]not[[:space:]]found"
 						success_attack_goodpixie_pin_regexp="^\[Pixie\-Dust\][[:space:]]*\[\+\][[:space:]]*WPS[[:space:]]pin:.*([0-9]{8})"
 						success_attack_goodpixie_password_regexp=".*?\[\+\][[:space:]]WPA[[:space:]]PSK:[[:space:]]'(.*)'"
 					;;
@@ -9753,7 +9810,6 @@ function set_wps_attack_script() {
 						success_attack_goodpin_regexp="^\[\*\][[:space:]]Pin[[:space:]]is[[:space:]]'([0-9]{8})',[[:space:]]key[[:space:]]is[[:space:]]'(.*)'"
 					;;
 					"pixiedust")
-						success_attack_badpixie_regexp="^\[Pixie\-Dust\][[:space:]]WPS[[:space:]]pin[[:space:]]not[[:space:]]found"
 						success_attack_goodpixie_pin_regexp="^\[Pixie\-Dust\][[:space:]]PIN[[:space:]]FOUND:[[:space:]]([0-9]{8})"
 						success_attack_goodpixie_password_regexp="^\[\*\][[:space:]]Pin[[:space:]]is[[:space:]]'[0-9]{8}',[[:space:]]key[[:space:]]is[[:space:]]'(.*)'"
 					;;
@@ -10000,7 +10056,7 @@ function set_wps_attack_script() {
 			echo -e "${pin_cracked_msg}${cracked_pin}"
 			if [ -n "${cracked_password}" ]; then
 				echo -e "${password_cracked_msg}${cracked_password}"
-				manage_wps_pot "${cracked_password}"
+				manage_wps_pot "${cracked_password}" "${cracked_pin}"
 			else
 				echo -e "${password_not_cracked_msg}"
 			fi
@@ -10435,12 +10491,12 @@ function set_et_control_script() {
 	EOF
 
 	cat >&7 <<-'EOF'
+				kill_et_windows
 				kill "$(ps -C hostapd --no-headers -o pid | tr -d ' ')" &> /dev/null
 				kill "$(ps -C dhcpd --no-headers -o pid | tr -d ' ')" &> /dev/null
 				kill "$(ps -C aireplay-ng --no-headers -o pid | tr -d ' ')" &> /dev/null
 				kill "$(ps -C dnsmasq --no-headers -o pid | tr -d ' ')" &> /dev/null
 				kill "$(ps -C lighttpd --no-headers -o pid | tr -d ' ')" &> /dev/null
-				kill_et_windows
 	EOF
 
 	if [ "${AIRGEDDON_WINDOWS_HANDLING}" = "tmux" ]; then
@@ -11288,7 +11344,7 @@ function launch_bettercap_sniffing() {
 		fi
 
 		if [ "${et_mode}" = "et_sniffing_sslstrip2" ]; then
-			bettercap_cmd="bettercap -I ${interface} -X -S NONE --no-discovery --proxy --proxy-port ${bettercap_proxy_port} ${bettercap_extra_cmd_options} --proxy-module --dns-port ${bettercap_dns_port}"
+			bettercap_cmd="bettercap -I ${interface} -X -S NONE --no-discovery --proxy --proxy-port ${bettercap_proxy_port} ${bettercap_extra_cmd_options} --dns-port ${bettercap_dns_port}"
 		else
 			bettercap_cmd="bettercap -I ${interface} -X -S NONE --no-discovery --proxy --proxy-port ${bettercap_proxy_port} ${bettercap_extra_cmd_options} --proxy-module injectjs --js-url \"http://${et_ip_router}:${beef_port}/${jshookfile}\" --dns-port ${bettercap_dns_port}"
 		fi
@@ -11801,30 +11857,36 @@ function capture_handshake_evil_twin() {
 
 	handshake_capture_check
 
-	if check_bssid_in_captured_file "${tmpdir}${standardhandshake_filename}" "showing_msgs_capturing" "also_pmkid"; then
+	check_bssid_in_captured_file "${tmpdir}${standardhandshake_filename}" "showing_msgs_capturing" "also_pmkid"
+	case "$?" in
+		"0")
+			handshakepath="${default_save_path}"
+			handshakefilename="handshake-${bssid}.cap"
+			handshakepath="${handshakepath}${handshakefilename}"
 
-		handshakepath="${default_save_path}"
-		handshakefilename="handshake-${bssid}.cap"
-		handshakepath="${handshakepath}${handshakefilename}"
+			echo
+			language_strings "${language}" 162 "yellow"
+			validpath=1
+			while [[ "${validpath}" != "0" ]]; do
+				read_path "writeethandshake"
+			done
 
-		echo
-		language_strings "${language}" 162 "yellow"
-		validpath=1
-		while [[ "${validpath}" != "0" ]]; do
-			read_path "writeethandshake"
-		done
-
-		cp "${tmpdir}${standardhandshake_filename}" "${et_handshake}"
-		echo
-		language_strings "${language}" 324 "blue"
-		language_strings "${language}" 115 "read"
-		return 0
-	else
-		echo
-		language_strings "${language}" 146 "red"
-		language_strings "${language}" 115 "read"
-		return 2
-	fi
+			cp "${tmpdir}${standardhandshake_filename}" "${et_handshake}"
+			echo
+			language_strings "${language}" 324 "blue"
+			language_strings "${language}" 115 "read"
+			return 0
+		;;
+		"1")
+			echo
+			language_strings "${language}" 146 "red"
+			language_strings "${language}" 115 "read"
+			return 2
+		;;
+		"2")
+			return 2
+		;;
+	esac
 }
 
 #Capture Handshake on Handshake/PMKID tools
@@ -11962,6 +12024,10 @@ function validate_path() {
 				et_handshake="${pathname}${standardhandshake_filename}"
 				suggested_filename="${standardhandshake_filename}"
 			;;
+			"et_captive_portallog")
+				suggested_filename="${default_et_captive_portallogfilename}"
+				et_captive_portal_logpath+="${default_et_captive_portallogfilename}"
+			;;
 			"wpspot")
 				suggested_filename="${wpspot_filename}"
 				wpspotenteredpath+="${wpspot_filename}"
@@ -11974,7 +12040,7 @@ function validate_path() {
 				enterprise_potpath="${pathname}"
 				enterprise_basepath=$(dirname "${enterprise_potpath}")
 
-				if [[ "${enterprise_basepath}" != "." ]]; then
+				if [ "${enterprise_basepath}" != "." ]; then
 					enterprise_dirname=$(basename "${enterprise_potpath}")
 				fi
 
@@ -12024,7 +12090,7 @@ function validate_path() {
 	return 0
 }
 
-#It checks the write permissions of a directory recursively
+#It checks for write permissions of a directory recursively
 function dir_permission_check() {
 
 	debug_print
@@ -12359,29 +12425,44 @@ function launch_handshake_capture() {
 
 	handshake_capture_check
 
-	if check_bssid_in_captured_file "${tmpdir}${standardhandshake_filename}" "showing_msgs_capturing" "also_pmkid"; then
+	check_bssid_in_captured_file "${tmpdir}${standardhandshake_filename}" "showing_msgs_capturing" "also_pmkid"
+	case "$?" in
+		"0")
+			handshakepath="${default_save_path}"
+			handshakefilename="handshake-${bssid}.cap"
+			handshakepath="${handshakepath}${handshakefilename}"
 
-		handshakepath="${default_save_path}"
-		handshakefilename="handshake-${bssid}.cap"
-		handshakepath="${handshakepath}${handshakefilename}"
+			echo
+			language_strings "${language}" 162 "yellow"
+			validpath=1
+			while [[ "${validpath}" != "0" ]]; do
+				read_path "handshake"
+			done
 
-		echo
-		language_strings "${language}" 162 "yellow"
-		validpath=1
-		while [[ "${validpath}" != "0" ]]; do
-			read_path "handshake"
-		done
+			cp "${tmpdir}${standardhandshake_filename}" "${enteredpath}"
+			echo
+			language_strings "${language}" 149 "blue"
+			language_strings "${language}" 115 "read"
+			return_to_handshake_pmkid_tools_menu=1
+		;;
+		"1")
+			echo
+			language_strings "${language}" 146 "red"
+			language_strings "${language}" 115 "read"
+		;;
+		"2")
+			:
+		;;
+	esac
+}
 
-		cp "${tmpdir}${standardhandshake_filename}" "${enteredpath}"
-		echo
-		language_strings "${language}" 149 "blue"
-		language_strings "${language}" 115 "read"
-		return_to_handshake_pmkid_tools_menu=1
-	else
-		echo
-		language_strings "${language}" 146 "red"
-		language_strings "${language}" 115 "read"
-	fi
+#Check if a Handshake is WPA2
+function is_wpa2_handshake() {
+
+	debug_print
+
+	bash -c "aircrack-ng -a 2 -b \"${2}\" -w \"${1}\" \"${1}\" > /dev/null 2>&1"
+	return $?
 }
 
 #Launch the Handshake capture window
@@ -12508,12 +12589,31 @@ function explore_for_targets_option() {
 		cypher_filter="${1}"
 		case ${cypher_filter} in
 			"WEP")
+				#Only WEP
 				language_strings "${language}" 67 "yellow"
 			;;
+			"WPA1")
+				#Only WPA including WPA/WPA2 in Mixed mode
+				#Not used yet in airgeddon
+				:
+			;;
+			"WPA2")
+				#Only WPA2 including WPA/WPA2 and WPA2/WPA3 in Mixed mode
+				#Not used yet in airgeddon
+				:
+			;;
+			"WPA3")
+				#Only WPA3 including WPA2/WPA3 in Mixed mode
+				#Not used yet in airgeddon
+				:
+			;;
 			"WPA")
+				#All, WPA, WPA2 and WPA3 including all Mixed modes
 				if [[ -n "${2}" ]] && [[ "${2}" = "enterprise" ]]; then
 					language_strings "${language}" 527 "yellow"
 				else
+					language_strings "${language}" 215 "blue"
+					echo
 					language_strings "${language}" 361 "yellow"
 				fi
 			;;
@@ -12539,11 +12639,10 @@ function explore_for_targets_option() {
 	recalculate_windows_sizes
 	manage_output "+j -bg \"#000000\" -fg \"#FFFFFF\" -geometry ${g1_topright_window} -T \"Exploring for targets\"" "airodump-ng -w ${tmpdir}nws${cypher_cmd}${interface} --band ${airodump_band_modifier}" "Exploring for targets" "active"
 	wait_for_process "airodump-ng -w ${tmpdir}nws${cypher_cmd}${interface} --band ${airodump_band_modifier}" "Exploring for targets"
-	targetline=$(awk '/(^Station[s]?|^Client[es]?)/{print NR}' < "${tmpdir}nws-01.csv")
+	targetline=$(awk '/(^Station[s]?|^Client[es]?)/{print NR}' "${tmpdir}nws-01.csv" 2> /dev/null)
 	targetline=$((targetline - 1))
-
-	head -n "${targetline}" "${tmpdir}nws-01.csv" &> "${tmpdir}nws.csv"
-	tail -n +"${targetline}" "${tmpdir}nws-01.csv" &> "${tmpdir}clts.csv"
+	head -n "${targetline}" "${tmpdir}nws-01.csv" 2> /dev/null &> "${tmpdir}nws.csv"
+	tail -n +"${targetline}" "${tmpdir}nws-01.csv" 2> /dev/null &> "${tmpdir}clts.csv"
 
 	csvline=$(wc -l "${tmpdir}nws.csv" 2> /dev/null | awk '{print $1}')
 	if [ "${csvline}" -le 3 ]; then
@@ -12557,13 +12656,14 @@ function explore_for_targets_option() {
 	rm -rf "${tmpdir}wnws.txt" > /dev/null 2>&1
 	local i=0
 	local enterprise_network_counter
+	local pure_wpa3
 	while IFS=, read -r exp_mac _ _ exp_channel _ exp_enc _ exp_auth exp_power _ _ _ exp_idlength exp_essid _; do
 
 		chars_mac=${#exp_mac}
 		if [ "${chars_mac}" -ge 17 ]; then
 			i=$((i + 1))
-			if [[ ${exp_power} -lt 0 ]]; then
-				if [[ ${exp_power} -eq -1 ]]; then
+			if [ "${exp_power}" -lt 0 ]; then
+				if [ "${exp_power}" -eq -1 ]; then
 					exp_power=0
 				else
 					exp_power=$((exp_power + 100))
@@ -12585,11 +12685,41 @@ function explore_for_targets_option() {
 
 			exp_enc=$(echo "${exp_enc}" | awk '{print $1}')
 
-			if [[ -n "${2}" ]] && [[ "${2}" = "enterprise" ]]; then
-				if [[ "${exp_auth}" =~ "MGT" ]]; then
-					enterprise_network_counter=$((enterprise_network_counter + 1))
-					echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
-				fi
+			if [ -n "${1}" ]; then
+				case ${cypher_filter} in
+					"WEP")
+						#Only WEP
+						echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
+					;;
+					"WPA1")
+						#Only WPA including WPA/WPA2 in Mixed mode
+						#Not used yet in airgeddon
+						echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
+					;;
+					"WPA2")
+						#Only WPA2 including WPA/WPA2 and WPA2/WPA3 in Mixed mode
+						#Not used yet in airgeddon
+						echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
+					;;
+					"WPA3")
+						#Only WPA3 including WPA2/WPA3 in Mixed mode
+						#Not used yet in airgeddon
+						echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
+					;;
+					"WPA")
+						if [[ -n "${2}" ]] && [[ "${2}" = "enterprise" ]]; then
+							if [[ "${exp_auth}" =~ "MGT" ]]; then
+								enterprise_network_counter=$((enterprise_network_counter + 1))
+								echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
+							fi
+						else
+							[[ ${exp_auth} =~ ^[[:blank:]](SAE)$ ]] && pure_wpa3="${BASH_REMATCH[1]}"
+							if [ "${pure_wpa3}" != "SAE" ]; then
+								echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
+							fi
+						fi
+					;;
+				esac
 			else
 				echo -e "${exp_mac},${exp_channel},${exp_power},${exp_essid},${exp_enc}" >> "${tmpdir}nws.txt"
 			fi
@@ -12717,9 +12847,9 @@ function explore_for_wps_targets_option() {
 			expwps_locked=$(echo "${expwps_line}" | awk '{print $5}')
 			expwps_essid=$(echo "${expwps_line//[\`\']/}" | awk -F '\t| {2,}' '{print $NF}')
 
-			if [[ ${expwps_channel} -le 9 ]]; then
+			if [ "${expwps_channel}" -le 9 ]; then
 				wpssp2="  "
-				if [[ ${expwps_channel} -eq 0 ]]; then
+				if [ "${expwps_channel}" -eq 0 ]; then
 					expwps_channel="-"
 				fi
 			elif [[ ${expwps_channel} -ge 10 ]] && [[ ${expwps_channel} -lt 99 ]]; then
@@ -12736,15 +12866,15 @@ function explore_for_wps_targets_option() {
 				expwps_power=${expwps_power//0/}
 			fi
 
-			if [[ ${expwps_power} -lt 0 ]]; then
-				if [[ ${expwps_power} -eq -1 ]]; then
+			if [ ${expwps_power} -lt 0 ]; then
+				if [ ${expwps_power} -eq -1 ]; then
 					expwps_power=0
 				else
 					expwps_power=$((expwps_power + 100))
 				fi
 			fi
 
-			if [[ ${expwps_power} -le 9 ]]; then
+			if [ ${expwps_power} -le 9 ]; then
 				wpssp4=" "
 			else
 				wpssp4=""
@@ -12827,12 +12957,12 @@ function select_target() {
 			sp1=""
 		fi
 
-		if [[ ${exp_channel} -le 9 ]]; then
+		if [ "${exp_channel}" -le 9 ]; then
 			sp2="  "
-			if [[ ${exp_channel} -eq 0 ]]; then
+			if [ "${exp_channel}" -eq 0 ]; then
 				exp_channel="-"
 			fi
-			if [[ ${exp_channel} -lt 0 ]]; then
+			if [ "${exp_channel}" -lt 0 ]; then
 				sp2=" "
 			fi
 		elif [[ ${exp_channel} -ge 10 ]] && [[ ${exp_channel} -lt 99 ]]; then
@@ -12841,11 +12971,11 @@ function select_target() {
 			sp2=""
 		fi
 
-		if [[ "${exp_power}" = "" ]]; then
+		if [ "${exp_power}" = "" ]; then
 			exp_power=0
 		fi
 
-		if [[ ${exp_power} -le 9 ]]; then
+		if [ ${exp_power} -le 9 ]; then
 			sp4=" "
 		else
 			sp4=""
@@ -13148,7 +13278,7 @@ function et_prerequisites() {
 
 	if [ -n "${enterprise_mode}" ]; then
 		manage_enterprise_log
-	elif [[ "${et_mode}" = "et_sniffing" ]]; then
+	elif [ "${et_mode}" = "et_sniffing" ]; then
 		manage_ettercap_log
 	elif [[ "${et_mode}" = "et_sniffing_sslstrip2" ]] || [[ "${et_mode}" = "et_sniffing_sslstrip2_beef" ]]; then
 		manage_bettercap_log
@@ -13179,7 +13309,7 @@ function et_prerequisites() {
 		language_strings "${language}" 115 "read"
 	fi
 
-	if [[ "${channel}" -gt 14 ]]; then
+	if [ "${channel}" -gt 14 ]; then
 		echo
 		language_strings "${language}" 392 "blue"
 	fi
@@ -13745,13 +13875,17 @@ function set_hashcat_parameters() {
 		hashcat_charset_fix_needed=1
 
 		if compare_floats_greater_or_equal "${hashcat_version}" "${hashcat4_version}"; then
-			hashcat_cmd_fix=" -D 1 --force"
+			hashcat_cmd_fix=" -D 2,1 --force"
 		else
-			hashcat_cmd_fix=" --weak-hash-threshold 0 -D 1 --force"
+			hashcat_cmd_fix=" --weak-hash-threshold 0 -D 2,1 --force"
 		fi
 
 		if compare_floats_greater_or_equal "${hashcat_version}" "${hashcat_hccapx_version}"; then
 			hccapx_needed=1
+		fi
+
+		if compare_floats_greater_or_equal "${hashcat_version}" "${hashcat_2500_deprecated_version}"; then
+			hashcat_handshake_cracking_plugin="22000"
 		fi
 	fi
 }
@@ -14161,6 +14295,13 @@ function detect_distro_phase1() {
 			break
 		fi
 	done
+
+	for i in "${known_incompatible_distros[@]}"; do
+		if uname -a | grep "${i}" -i > /dev/null; then
+			distro="${i^}"
+			break
+		fi
+	done
 }
 
 #Second phase of Linux distro detection based on architecture and version file
@@ -14434,6 +14575,20 @@ function general_checkings() {
 
 	exit_code=1
 	exit_script_option
+}
+
+#Check if system is running under Windows Subsystem for Linux
+check_wsl() {
+
+	debug_print
+
+	if [ "${distro}" = "Microsoft" ]; then
+		echo
+		language_strings "${language}" 701 "red"
+		language_strings "${language}" 115 "read"
+		exit_code=1
+		exit_script_option
+	fi
 }
 
 #Check if the user is root
@@ -15333,7 +15488,7 @@ function kill_tmux_windows() {
 	done
 }
 
-#Function to pause script execution on the main window until a process has finished executing or the user terminates it
+#Function to pause script execution in the main window until a process has finished executing or the user terminates it
 #shellcheck disable=SC2009
 function wait_for_process() {
 
@@ -15432,9 +15587,11 @@ function parse_plugins() {
 					plugin_short_name="${file##*/}"
 					plugin_short_name="${plugin_short_name%.sh*}"
 
-					#shellcheck source=./plugins/missing_dependencies.sh
-					source "${file}" "$@"
-					if [ "${plugin_enabled}" -eq 1 ]; then
+					if grep -q -E "^plugin_enabled=1$" "${file}"; then
+
+						#shellcheck source=./plugins/missing_dependencies.sh
+						source "${file}" "$@"
+
 						validate_plugin_requirements
 						plugin_validation_result=$?
 						if [ "${plugin_validation_result}" -eq 0 ]; then
@@ -15583,7 +15740,7 @@ function airmonzc_security_check() {
 	fi
 }
 
-#Compare if first float argument is greater than float second argument
+#Check if the first float argument is greater than the second
 function compare_floats_greater_than() {
 
 	debug_print
@@ -15591,7 +15748,7 @@ function compare_floats_greater_than() {
 	awk -v n1="${1}" -v n2="${2}" 'BEGIN{if (n1>n2) exit 0; exit 1}'
 }
 
-#Compare if first float argument is greater or equal than float second argument
+#Check if the first float argument is greater than or equal to the second float argument
 function compare_floats_greater_or_equal() {
 
 	debug_print
@@ -15719,7 +15876,7 @@ function check_internet_access() {
 	return 1
 }
 
-#Check for access to an url using curl
+#Check for access to a url using curl
 function check_url_curl() {
 
 	debug_print
@@ -15736,7 +15893,7 @@ function check_url_curl() {
 	return 1
 }
 
-#Check for access to an url using wget
+#Check for access to a url using wget
 function check_url_wget() {
 
 	debug_print
@@ -15753,7 +15910,7 @@ function check_url_wget() {
 	return 1
 }
 
-#Detect if there is a http proxy configured on system
+#Detect if there is an http proxy configured on the system
 function http_proxy_detect() {
 
 	debug_print
@@ -15776,7 +15933,7 @@ function check_default_route() {
 	return $?
 }
 
-#Update the script if your version is lower than the cloud version
+#Update the script if your version is outdated
 function autoupdate_check() {
 
 	debug_print
@@ -15821,7 +15978,7 @@ function autoupdate_check() {
 	language_strings "${language}" 115 "read"
 }
 
-#Change script language automatically if OS language is supported by the script and different from current language
+#Change script language automatically if OS language is supported by the script and different from the current language
 function autodetect_language() {
 
 	debug_print
@@ -15837,7 +15994,7 @@ function autodetect_language() {
 	done
 }
 
-#Detect if current language is a supported RTL (Right To Left) language
+#Detect if the current language is a supported RTL (Right To Left) language
 function detect_rtl_language() {
 
 	debug_print
@@ -15853,7 +16010,7 @@ function detect_rtl_language() {
 	done
 }
 
-#Clean some known and controlled warnings for shellcheck tool
+#Clean some known and controlled warnings for ShellCheck
 function remove_warnings() {
 
 	debug_print
@@ -16104,6 +16261,7 @@ function main() {
 
 		check_bash_version
 		check_root_permissions
+		check_wsl
 
 		if [ "${AIRGEDDON_WINDOWS_HANDLING}" = "xterm" ]; then
 			echo
@@ -16143,7 +16301,7 @@ function main() {
 	main_menu
 }
 
-#Script starts to executing stuff from this point, traps and then main function
+#Script starts to execute stuff from this point, traps and then the main function
 for f in SIGINT SIGHUP INT SIGTSTP; do
 	trap_cmd="trap \"capture_traps ${f}\" \"${f}\""
 	eval "${trap_cmd}"
