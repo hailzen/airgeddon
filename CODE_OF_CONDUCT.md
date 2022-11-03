@@ -1,5 +1,6 @@
 # Code of Conduct
 
+#edited by me
 ## Our Pledge
 
 In the interest of fostering an open and welcoming environment, we as
